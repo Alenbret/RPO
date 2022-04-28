@@ -1,55 +1,43 @@
 #include <jni.h>
 #include <string>
-#include <android/log.h>
-#include <spdlog/spdlog.h>
-#include <spdlog/sinks/android_sink.h>
+//В native-lib.cpp надо добавить заголовки и несколько глобальных переменных.
 #include <mbedtls/entropy.h>
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/des.h>
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/android_sink.h>
+
+#define LOG_INFO(...) __android_log_print(ANDROID_LOG_INFO, "fclient_ndk", __VA_ARGS__)
+#define SLOG_INFO(...) android_logger->info( __VA_ARGS__ )
+auto android_logger = spdlog::android_logger_mt("android", "fclient_ndk");
 
 mbedtls_entropy_context entropy;
 mbedtls_ctr_drbg_context ctr_drbg;
 char *personalization = "fclient-sample-app";
 
-#define LOG_INFO(...) __android_log_print(ANDROID_LOG_INFO, "fclient_ndk", __VA_ARGS__)
-#define SLOG_INFO(...) android_logger->info( __VA_ARGS__ )
 
-auto android_logger = spdlog::android_logger_mt("android", "fclient_ndk");
-
-JavaVM* gJvm = nullptr;
-JNIEXPORT jint JNICALL JNI_OnLoad (JavaVM* pjvm, void* reserved)
-{
-    gJvm = pjvm;
-    return JNI_VERSION_1_6;
-}
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_ru_iu3_163_fclient2_MainActivity_stringFromJNI(
-        JNIEnv* env,
-        jobject /* this */) {
-    LOG_INFO("Hello from Android log %d", 2022);
-    SLOG_INFO("Hello from SpdLog {}", 2022);
-
-    std::string hello = "Hello from C++";
+Java_ru_iu3_fclient_MainActivity_stringFromJNI(JNIEnv* env, jobject){
+    std::string hello = "Hello from C++, Hello from spdlog";
+    LOG_INFO("Hello from c++ %d", 2022);
+    SLOG_INFO("Hello from spdlog {0}", 2022);
     return env->NewStringUTF(hello.c_str());
 }
 
-// ф-я инициализации генератора правдиво рандомных чисел TRNG
-extern "C" JNIEXPORT jint JNICALL
-Java_ru_iu3_163_fclient2_MainActivity_initRng(JNIEnv *env,
-                                         jclass clazz) {
+
+//Генератор
+extern "C" JNIEXPORT jint  JNICALL
+Java_ru_iu3_fclient_MainActivity_initRng(JNIEnv *env, jclass clazz) {
     mbedtls_entropy_init( &entropy );
     mbedtls_ctr_drbg_init( &ctr_drbg );
-
-    return mbedtls_ctr_drbg_seed( &ctr_drbg ,
-                                  mbedtls_entropy_func, &entropy,
+    return mbedtls_ctr_drbg_seed( &ctr_drbg , mbedtls_entropy_func, &entropy,
                                   (const unsigned char *) personalization,
                                   strlen( personalization ) );
 }
-
-// ф-я возвращающая рандомные биты
-extern "C" JNIEXPORT jbyteArray JNICALL
-Java_ru_iu3_163_fclient2_MainActivity_randomBytes(JNIEnv *env, jclass, jint no) {
+//Возвращает случайные байты
+extern "C" JNIEXPORT jbyteArray  JNICALL
+Java_ru_iu3_fclient_MainActivity_randomBytes(JNIEnv *env, jclass, jint no) {
     uint8_t * buf = new uint8_t [no];
     mbedtls_ctr_drbg_random(&ctr_drbg, buf, no);
     jbyteArray rnd = env->NewByteArray(no);
@@ -57,12 +45,10 @@ Java_ru_iu3_163_fclient2_MainActivity_randomBytes(JNIEnv *env, jclass, jint no) 
     delete[] buf;
     return rnd;
 }
-
-// ф-я шифрования
+// Шифратор
 // https://tls.mbed.org/api/des_8h.html
-extern "C" JNIEXPORT jbyteArray JNICALL
-Java_ru_iu3_163_fclient2_MainActivity_encrypt(JNIEnv *env,
-                                         jclass, jbyteArray key, jbyteArray data)
+extern "C" JNIEXPORT jbyteArray  JNICALL
+Java_ru_iu3_fclient_MainActivity_encrypt(JNIEnv *env, jclass, jbyteArray key, jbyteArray data)
 {
     jsize ksz = env->GetArrayLength(key);
     jsize dsz = env->GetArrayLength(data);
@@ -71,10 +57,8 @@ Java_ru_iu3_163_fclient2_MainActivity_encrypt(JNIEnv *env,
     }
     mbedtls_des3_context ctx;
     mbedtls_des3_init(&ctx);
-
     jbyte * pkey = env->GetByteArrayElements(key, 0);
 
-    // Паддинг PKCS#5
     int rst = dsz % 8;
     int sz = dsz + 8 - rst;
     uint8_t * buf = new uint8_t[sz];
@@ -85,8 +69,7 @@ Java_ru_iu3_163_fclient2_MainActivity_encrypt(JNIEnv *env,
     mbedtls_des3_set2key_enc(&ctx, (uint8_t *)pkey);
     int cn = sz / 8;
     for (int i = 0; i < cn; i++)
-        mbedtls_des3_crypt_ecb(&ctx, buf + i*8,
-                               buf + i*8);
+        mbedtls_des3_crypt_ecb(&ctx, buf + i*8, buf + i*8);
     jbyteArray dout = env->NewByteArray(sz);
     env->SetByteArrayRegion(dout, 0, sz, (jbyte *)buf);
     delete[] buf;
@@ -94,11 +77,9 @@ Java_ru_iu3_163_fclient2_MainActivity_encrypt(JNIEnv *env,
     env->ReleaseByteArrayElements(data, pdata, 0);
     return dout;
 }
-
-// ф-я дешифрования
-extern "C" JNIEXPORT jbyteArray JNICALL
-Java_ru_iu3_163_fclient2_MainActivity_decrypt(JNIEnv *env,
-                                         jclass, jbyteArray key, jbyteArray data)
+//Дешифратор
+extern "C" JNIEXPORT jbyteArray  JNICALL
+Java_ru_iu3_fclient_MainActivity_decrypt(JNIEnv *env, jclass, jbyteArray key, jbyteArray data)
 {
     jsize ksz = env->GetArrayLength(key);
     jsize dsz = env->GetArrayLength(data);
@@ -107,21 +88,16 @@ Java_ru_iu3_163_fclient2_MainActivity_decrypt(JNIEnv *env,
     }
     mbedtls_des3_context ctx;
     mbedtls_des3_init(&ctx);
-
     jbyte * pkey = env->GetByteArrayElements(key, 0);
-
     uint8_t * buf = new uint8_t[dsz];
-
     jbyte * pdata = env->GetByteArrayElements(data, 0);
     std::copy(pdata, pdata + dsz, buf);
     mbedtls_des3_set2key_dec(&ctx, (uint8_t *)pkey);
     int cn = dsz / 8;
     for (int i = 0; i < cn; i++)
         mbedtls_des3_crypt_ecb(&ctx, buf + i*8, buf +i*8);
-
-    //PKCS#5. упрощено. по соображениям безопасности надо проверить каждый байт паддинга
+//PKCS#5. упрощено. по соображениям безопасности надо проверить каждый байт
     int sz = dsz - 8 + buf[dsz-1];
-
     jbyteArray dout = env->NewByteArray(sz);
     env->SetByteArrayRegion(dout, 0, sz, (jbyte *)buf);
     delete[] buf;
@@ -129,6 +105,23 @@ Java_ru_iu3_163_fclient2_MainActivity_decrypt(JNIEnv *env,
     env->ReleaseByteArrayElements(data, pdata, 0);
     return dout;
 }
+/*Для получения ссылки на “свой” экземпляр JNIEnv надо проделать небольшую работу. Необходимо
+        получить указатель на объект JavaVM, который, в свою очередь, содержит указатель на функцию
+        возвращающую JNIEnv текущего потока. Объект JavaVM можно получить, если добавить к
+библиотеке native-lib функцию JNI_OnLoad.*/
+
+JavaVM* gJvm = nullptr;
+JNIEXPORT jint JNICALL JNI_OnLoad (JavaVM* pjvm, void* reserved)
+{
+    gJvm = pjvm;
+    return JNI_VERSION_1_6;
+}
+/*Во первых объект JNIEnv должен быть “привязан” к текущему
+потоку. Это действие надо выполнить только один раз, с помощью функции AttachCurrentThread.
+Если, например, вызвать эту функцию из функции transaction, привязка env вручную не понадобится,
+        так как это делается автоматически перед тем как управление передается в функцию transaction.
+Поэтому привязка выполняется только при условии, что статус объекта равен JNI_EDETACHED.
+Когда объект env становится ненужным, его надо отцепить от текущего потока.*/
 
 JNIEnv* getEnv (bool& detach)
 {
@@ -146,7 +139,6 @@ JNIEnv* getEnv (bool& detach)
     }
     return env;
 }
-
 void releaseEnv (bool detach, JNIEnv* env)
 {
     if (detach && (gJvm != nullptr))
@@ -157,18 +149,14 @@ void releaseEnv (bool detach, JNIEnv* env)
 
 extern "C"
 JNIEXPORT jboolean JNICALL
-Java_ru_iu3_163_fclient2_MainActivity_transaction(JNIEnv *xenv,
-                                                  jobject xthiz, jbyteArray xtrd){
+Java_ru_iu3_fclient_MainActivity_transaction(JNIEnv *xenv, jobject xthiz, jbyteArray xtrd){
     jobject thiz = xenv->NewGlobalRef(xthiz);
     jbyteArray trd = (jbyteArray)xenv->NewGlobalRef(xtrd);
     std::thread t([thiz, trd] {
         bool detach = false;
         JNIEnv *env = getEnv(detach);
         jclass cls = env->GetObjectClass(thiz);
-        jmethodID id = env->GetMethodID(
-                cls, "enterPin", "(ILjava/lang/String;)Ljava/lang/String;");
-        //jclass cls = env->GetObjectClass(thiz);
-        //jmethodID id = env->GetMethodID(cls, "enterPin", "(ILjava/lang/String;)Ljava/lang/String;");
+        jmethodID id = env->GetMethodID(cls, "enterPin", "(ILjava/lang/String;)Ljava/lang/String;");
         //TRD 9F0206000000000100 = amount = 1р
         uint8_t *p = (uint8_t *) env->GetByteArrayElements(trd, 0);
         jsize sz = env->GetArrayLength(trd);
@@ -187,22 +175,23 @@ Java_ru_iu3_163_fclient2_MainActivity_transaction(JNIEnv *xenv,
             jstring pin = (jstring) env->CallObjectMethod(thiz, id, ptc, jamount);
             const char *utf = env->GetStringUTFChars(pin, nullptr);
             env->ReleaseStringUTFChars(pin, utf);
-            if ((utf != nullptr) && (strcmp(utf, "6666") == 0))
+            if ((utf != nullptr) && (strcmp(utf, "1234") == 0))
                 break;
             ptc--;
         }
 
-        //------- pt1 env->ReleaseByteArrayElements(trd, (jbyte *) p, 0);
-        //------- pt1 return (ptc > 0);
         id = env->GetMethodID(cls, "transactionResult", "(Z)V");
         env->CallVoidMethod(thiz, id, ptc > 0);
-
         env->ReleaseByteArrayElements(trd, (jbyte *)p, 0);
         env->DeleteGlobalRef(thiz);
         env->DeleteGlobalRef(trd);
         releaseEnv(detach, env);
         return true;
     });
+    /*В конце функции потока надо вызвать обработчик transactionResult, что бы передать в MainActivity
+    результат ввода ПИН-кода. Затем освободить ресурсы выделенные под глобальные ссылки на
+    объекты хthiz и хtrd.*/
+
     t.detach();
     return true;
 }

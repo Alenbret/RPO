@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="ru.iu3_63.fclient2">
-
-    <uses-permission android:name="android.permission.INTERNET" />
+    package="ru.iu3.fclient">
 
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:usesCleartextTraffic="true"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Fclient2"
-        android:usesCleartextTraffic="true">
-        <activity android:name=".PinpadActivity"></activity>
+        android:theme="@style/Theme.Fclient">
+        <activity
+            android:name=".PinpadActivity"
+            android:exported="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -22,5 +22,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
     </application>
+    <uses-permission android:name="android.permission.INTERNET" />
+
 </manifest>

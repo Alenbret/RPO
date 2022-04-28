@@ -7,35 +7,20 @@ cmake_minimum_required(VERSION 3.18.1)
 
 # Declares and names the project.
 
-project("fclient2")
-
-# Creates and names a library, sets it as either STATIC
-# or SHARED, and provides the relative paths to its source code.
-# You can define multiple libraries, and CMake builds them for you.
-# Gradle automatically packages shared libraries with your APK.
-
+project("fclient")
 add_library( # Sets the name of the library.
-        fclient2
+        fclient
 
         # Sets the library as a shared library.
         SHARED
 
         # Provides a relative path to your source file(s).
         native-lib.cpp)
-
-target_include_directories(fclient2 PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../libs/spdlog/spdlog/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../libs/mbedtls/mbedtls/include
-        )
-
-add_library(spdlog STATIC IMPORTED)
-set_target_properties(spdlog PROPERTIES IMPORTED_LOCATION
-        ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../libs/spdlog/build/${ANDROID_ABI}/libspdlog.a)
-
-add_library(mbedcrypto SHARED IMPORTED)
-set_target_properties(mbedcrypto PROPERTIES IMPORTED_LOCATION
-        ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../libs/mbedtls/build/${ANDROID_ABI}/library/libmbedcrypto.so)
-
+# Creates and names a library, sets it as either STATIC
+# or SHARED, and provides the relative paths to its source code.
+# You can define multiple libraries, and CMake builds them for you.
+# Gradle automatically packages shared libraries with your APK.
+#
 # Searches for a specified prebuilt library and stores the path as a
 # variable. Because CMake includes system libraries in the search path by
 # default, you only need to specify the name of the public NDK library
@@ -53,10 +38,29 @@ find_library( # Sets the name of the path variable.
 # can link multiple libraries, such as libraries you define in this
 # build script, prebuilt third-party libraries, or system libraries.
 
+
 target_link_libraries( # Specifies the target library.
-        fclient2
-        spdlog
-        mbedcrypto
+        fclient
+
         # Links the target library to the log library
         # included in the NDK.
         ${log-lib})
+
+#Линкуем наши библиотеки с основой
+add_library(spdlog STATIC IMPORTED)
+set_target_properties(spdlog PROPERTIES IMPORTED_LOCATION
+        /home/rustam/AndroidStudioProjects/libs/spdlog/build/${ANDROID_ABI}/libspdlog.a)
+
+add_library(mbedcrypto SHARED IMPORTED)
+set_target_properties(mbedcrypto PROPERTIES IMPORTED_LOCATION
+        /home/rustam/AndroidStudioProjects/fclient/app/src/main/nativeLibs/${ANDROID_ABI}/libmbedcrypto.so)
+target_include_directories(fclient PUBLIC
+        /home/rustam/AndroidStudioProjects/libs/spdlog/spdlog/include
+        /home/rustam/AndroidStudioProjects/libs/mbedtls/mbedtls/include
+        )
+
+target_link_libraries(
+        fclient
+        spdlog
+        mbedcrypto
+)
